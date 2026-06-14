@@ -76,8 +76,6 @@ class NLPService:
         keywords = [w for w in words if len(w) > 4 and w not in stopwords]
         
         # Retornar palabras más frecuentes
-        from collections import Counter
-        top_keywords = [word for word, _ in Counter(keywords).most_common(5)]
         top_keywords = [word for word, count in Counter(keywords).most_common(5)]
         
         return top_keywords if top_keywords else ["consulta"]
