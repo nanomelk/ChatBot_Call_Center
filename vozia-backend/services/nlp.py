@@ -3,6 +3,7 @@ Servicio de Procesamiento de Lenguaje Natural (NLP)
 Extrae temas, palabras clave, y análisis de texto
 Utiliza spaCy y patrones personalizados
 """
+from collections import Counter
 from typing import List, Tuple
 import re
 
@@ -77,6 +78,7 @@ class NLPService:
         # Retornar palabras más frecuentes
         from collections import Counter
         top_keywords = [word for word, _ in Counter(keywords).most_common(5)]
+        top_keywords = [word for word, count in Counter(keywords).most_common(5)]
         
         return top_keywords if top_keywords else ["consulta"]
     
