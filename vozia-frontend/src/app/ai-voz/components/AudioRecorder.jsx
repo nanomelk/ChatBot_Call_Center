@@ -10,9 +10,10 @@ export default function AudioRecorder({
   transcribeError,
   setTranscribeError,
   fileName,
-  setFileName
+  setFileName,
+  isRecording,
+  setIsRecording
 }) {
-  const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [transcribeProgress, setTranscribeProgress] = useState(0)
