@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Bot, LayoutDashboard, TrendingUp, Sparkles, Cpu } from "lucide-react";
 import ChatCopilotInput from "../copilot/ChatCopilotInput";
 import ChatCopilotMessage from "../copilot/ChatCopilotMessage";
@@ -12,18 +12,47 @@ export default function ChatCopilot({
   copilotWidth,
   setCopilotWidth,
 }) {
-  const { input, setInput, loading, messages, handleSend } = useChatCopilotContext();
+  const { input, setInput, loading, messages, handleSend } =
+    useChatCopilotContext();
   const { pageContext } = usePageContextBridge();
-
 
   const [selectedModel, setSelectedModel] = useState("openai");
   const [isSwitching, setIsSwitching] = useState(false);
+  const [showModelsMobile, setShowModelsMobile] = useState(false);
 
+  useEffect(() => {
+    if (copilotOpen) {
+      setShowModelsMobile(false);
+    }
+  }, [copilotOpen]);
+
+  const handleBotClick = () => {
+    if (window.innerWidth < 1024) {
+      setShowModelsMobile(!showModelsMobile);
+    } else {
+      setCopilotOpen(true);
+    }
+  };
 
   const modelsConfig = {
-    openai: { name: "OpenAI GPT-4", latency: "1.2s", tokens: "128k", color: "text-emerald-400" },
-    gemini: { name: "Gemini 1.5 Pro", latency: "0.8s", tokens: "2m", color: "text-blue-400" },
-    anthropic: { name: "Anthropic Claude 3.5", latency: "1.5s", tokens: "200k", color: "text-orange-400" }
+    openai: {
+      name: "OpenAI GPT-4",
+      latency: "1.2s",
+      tokens: "128k",
+      color: "text-emerald-400",
+    },
+    gemini: {
+      name: "Gemini 1.5 Pro",
+      latency: "0.8s",
+      tokens: "2m",
+      color: "text-blue-400",
+    },
+    anthropic: {
+      name: "Anthropic Claude 3.5",
+      latency: "1.5s",
+      tokens: "200k",
+      color: "text-orange-400",
+    },
   };
 
   const handleModelChange = (modelKey) => {
@@ -37,24 +66,25 @@ export default function ChatCopilot({
 
   return (
     <>
-
       {!copilotOpen && (
         <aside
-          className="
-            absolute right-4 top-1/2 -translate-y-1/2
-            flex flex-col items-center justify-between
-            py-3 w-14 h-[260px]
+          className={`
+            fixed bottom-6 right-6 lg:absolute lg:top-1/2 lg:bottom-auto lg:-translate-y-1/2
+            flex flex-col-reverse lg:flex-col items-center justify-between
+            py-3 w-14
             rounded-none
             bg-[#0B0F17]/70
             backdrop-blur-2xl
             border border-white/10
             shadow-2xl shadow-black/40
             z-40
-          "
+            transition-all duration-300
+            ${showModelsMobile ? "h-[260px]" : "h-[68px] lg:h-[260px]"}
+          `}
         >
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col-reverse lg:flex-col items-center gap-3">
             <button
-              onClick={() => setCopilotOpen(true)}
+              onClick={handleBotClick}
               className="
                 w-11 h-11 rounded-none
                 bg-white/5 border border-white/10
@@ -64,31 +94,40 @@ export default function ChatCopilot({
             >
               <Bot size={18} className="text-slate-200" />
             </button>
-            
 
-            <button 
-              onClick={() => { setCopilotOpen(true); handleModelChange("openai"); }}
-              className={`text-[10px] font-mono w-11 h-11 flex items-center justify-center transition-none ${selectedModel === "openai" ? "text-emerald-400 font-bold border-l border-emerald-500" : "text-slate-500"}`}
+            <button
+              onClick={() => {
+                setCopilotOpen(true);
+                handleModelChange("openai");
+              }}
+              className={`text-[10px] font-mono w-11 h-11 flex items-center justify-center transition-none rounded-none ${selectedModel === "openai" ? "text-emerald-400 font-bold border-l border-emerald-500" : "text-slate-500"} ${showModelsMobile ? "flex" : "hidden lg:flex"}`}
             >
               OAI
             </button>
-            <button 
-              onClick={() => { setCopilotOpen(true); handleModelChange("gemini"); }}
-              className={`text-[10px] font-mono w-11 h-11 flex items-center justify-center transition-none ${selectedModel === "gemini" ? "text-blue-400 font-bold border-l border-blue-500" : "text-slate-500"}`}
+            <button
+              onClick={() => {
+                setCopilotOpen(true);
+                handleModelChange("gemini");
+              }}
+              className={`text-[10px] font-mono w-11 h-11 flex items-center justify-center transition-none rounded-none ${selectedModel === "gemini" ? "text-blue-400 font-bold border-l border-blue-500" : "text-slate-500"} ${showModelsMobile ? "flex" : "hidden lg:flex"}`}
             >
               GEM
             </button>
-            <button 
-              onClick={() => { setCopilotOpen(true); handleModelChange("anthropic"); }}
-              className={`text-[10px] font-mono w-11 h-11 flex items-center justify-center transition-none ${selectedModel === "anthropic" ? "text-orange-400 font-bold border-l border-orange-500" : "text-slate-500"}`}
+            <button
+              onClick={() => {
+                setCopilotOpen(true);
+                handleModelChange("anthropic");
+              }}
+              className={`text-[10px] font-mono w-11 h-11 flex items-center justify-center transition-none rounded-none ${selectedModel === "anthropic" ? "text-orange-400 font-bold border-l border-orange-500" : "text-slate-500"} ${showModelsMobile ? "flex" : "hidden lg:flex"}`}
             >
               ANT
             </button>
           </div>
-          <div className="w-2 h-2 rounded-none bg-white/30" />
+          <div
+            className={`w-2 h-2 rounded-none bg-white/30 ${showModelsMobile ? "block" : "hidden lg:block"}`}
+          />
         </aside>
       )}
-
 
       <div
         className="
@@ -106,14 +145,15 @@ export default function ChatCopilot({
           rounded-none
         "
         style={{
-       
-          width: copilotOpen ? (window.innerWidth < 1024 ? "100%" : `${copilotWidth}px`) : "0px",
+          width: copilotOpen
+            ? window.innerWidth < 1024
+              ? "100%"
+              : `${copilotWidth}px`
+            : "0px",
           opacity: copilotOpen ? 1 : 0,
-          borderLeftWidth: copilotOpen ? "1px" : "0px", 
+          borderLeftWidth: copilotOpen ? "1px" : "0px",
         }}
       >
-        
-     
         <div
           onMouseDown={(e) => {
             e.preventDefault();
@@ -138,11 +178,12 @@ export default function ChatCopilot({
           className="hidden lg:block absolute left-0 top-0 w-1 h-full cursor-col-resize z-50 bg-transparent hover:bg-blue-500/20"
         />
 
-
         <div className="p-4 border-b border-white/10 flex justify-between items-center rounded-none">
           <div>
             <h2 className="text-sm text-white">Business Copilot</h2>
-            <p className="text-xs text-slate-500">Connected to live dashboard context</p>
+            <p className="text-xs text-slate-500">
+              Connected to live dashboard context
+            </p>
           </div>
           <button
             onClick={() => setCopilotOpen(false)}
@@ -152,12 +193,13 @@ export default function ChatCopilot({
           </button>
         </div>
 
-
         <div className="grid grid-cols-3 border-b border-white/10 bg-[#070A10] text-center shrink-0">
           <button
             onClick={() => handleModelChange("openai")}
             className={`py-2 text-[11px] font-mono tracking-wider transition-none ${
-              selectedModel === "openai" ? "bg-white/5 text-emerald-400 font-bold border-b border-emerald-500" : "text-slate-500 hover:text-slate-300"
+              selectedModel === "openai"
+                ? "bg-white/5 text-emerald-400 font-bold border-b border-emerald-500"
+                : "text-slate-500 hover:text-slate-300"
             }`}
           >
             OPENAI
@@ -165,7 +207,9 @@ export default function ChatCopilot({
           <button
             onClick={() => handleModelChange("gemini")}
             className={`py-2 text-[11px] font-mono tracking-wider transition-none ${
-              selectedModel === "gemini" ? "bg-white/5 text-blue-400 font-bold border-b border-b-blue-500" : "text-slate-500 hover:text-slate-300"
+              selectedModel === "gemini"
+                ? "bg-white/5 text-blue-400 font-bold border-b border-b-blue-500"
+                : "text-slate-500 hover:text-slate-300"
             }`}
           >
             GEMINI
@@ -173,7 +217,9 @@ export default function ChatCopilot({
           <button
             onClick={() => handleModelChange("anthropic")}
             className={`py-2 text-[11px] font-mono tracking-wider transition-none ${
-              selectedModel === "anthropic" ? "bg-white/5 text-orange-400 font-bold border-b border-b-orange-500" : "text-slate-500 hover:text-slate-300"
+              selectedModel === "anthropic"
+                ? "bg-white/5 text-orange-400 font-bold border-b border-b-orange-500"
+                : "text-slate-500 hover:text-slate-300"
             }`}
           >
             ANTHROPIC
@@ -184,11 +230,23 @@ export default function ChatCopilot({
         <div className="px-4 py-1.5 bg-[#090D14] border-b border-white/10 flex items-center justify-between font-mono text-[10px] text-slate-500 shrink-0">
           <div className="flex items-center gap-1">
             <Cpu size={10} className={modelsConfig[selectedModel].color} />
-            <span className="text-slate-300 font-sans">{modelsConfig[selectedModel].name}</span>
+            <span className="text-slate-300 font-sans">
+              {modelsConfig[selectedModel].name}
+            </span>
           </div>
           <div className="flex gap-3">
-            <span>LATENCY: <strong className="text-slate-400">{modelsConfig[selectedModel].latency}</strong></span>
-            <span className="hidden sm:inline">CONTEXT: <strong className="text-slate-400">{modelsConfig[selectedModel].tokens}</strong></span>
+            <span>
+              LATENCY:{" "}
+              <strong className="text-slate-400">
+                {modelsConfig[selectedModel].latency}
+              </strong>
+            </span>
+            <span className="hidden sm:inline">
+              CONTEXT:{" "}
+              <strong className="text-slate-400">
+                {modelsConfig[selectedModel].tokens}
+              </strong>
+            </span>
           </div>
         </div>
 
@@ -213,12 +271,14 @@ export default function ChatCopilot({
             <ChatCopilotMessage messages={messages} loading={loading} />
           )}
         </div>
-        
+
         {/* ENTRADA DE INPUT ORIGINAL */}
-        <ChatCopilotInput 
-          input={input} 
-          setInput={setInput} 
-          handleSend={(e) => handleSend(e, { ...pageContext, active_model: selectedModel })} 
+        <ChatCopilotInput
+          input={input}
+          setInput={setInput}
+          handleSend={(e) =>
+            handleSend(e, { ...pageContext, active_model: selectedModel })
+          }
         />
       </div>
     </>
