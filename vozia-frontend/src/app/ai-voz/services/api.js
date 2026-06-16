@@ -78,6 +78,39 @@ export const apiService = {
       return { status: 'offline' }
     }
   },
+
+  // Transcribe audio using Whisper
+  async transcribeAudio(wavBlob) {
+    try {
+      const formData = new FormData()
+      formData.append("file", wavBlob, "audio_upload.wav")
+      const response = await api.post('/ia-voz/transcribe', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      return response.data
+    } catch (error) {
+      console.error('Transcription failed:', error)
+      const errMsg = error.response?.data?.detail || error.message || 'Error en el servidor de transcripción'
+      throw new Error(errMsg)
+    }
+  },
+
+  // Get cognitive call state analysis
+  async getCallState(message, sessionId = "DEMO_001") {
+    try {
+      const response = await api.post('/ia-voz/call-state', {
+        message,
+        session_id: sessionId,
+      })
+      return response.data
+    } catch (error) {
+      console.error('Call state analysis failed:', error)
+      const errMsg = error.response?.data?.detail || error.response?.data?.message || error.message || 'Error al conectar con el backend'
+      throw new Error(errMsg)
+    }
+  },
 }
 
 export default api
