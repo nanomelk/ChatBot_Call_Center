@@ -12,8 +12,8 @@ from bson.binary import Binary
 
 from langchain_core.messages import HumanMessage
 
-from app.ai_core.graphs.graph_ia_voz import app_agent_call_state
-from app.ai_core.graphs.graph_copilot import app_copilot
+from src.app.ai_core.graphs.graph_ia_voz import app_agent_call_state
+from src.app.ai_core.graphs.graph_copilot import app_copilot
 
 load_dotenv()
 
@@ -80,6 +80,7 @@ def call_state(req: ChatRequest):
             },
             "analisis": {
                 "emocion_principal": "",
+                "sentiment": "",  
                 "interes": 0,
                 "angustia": 0,
                 "urgencia": 0,
@@ -96,6 +97,7 @@ def call_state(req: ChatRequest):
     }
 
     result = app_agent_call_state.invoke(state, config=config)
+    print(result)
 
     MEMORY_LIVE_CONTEXT[req.session_id] = result["call_state"]
 
