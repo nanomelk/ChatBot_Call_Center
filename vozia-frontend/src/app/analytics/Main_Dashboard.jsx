@@ -9,6 +9,7 @@ import AIInsights from "./dashboard/componentes/AIInsights";
 import TopProducts from "./dashboard/componentes/TopProducts";
 import SalesTarget from "./dashboard/componentes/SalesTarget";
 import ActivityFeed from "./dashboard/componentes/ActivityFeed";
+import Header from "../ai-voz/components/Header";
 
 export default function DashboardPage() {
   const { dashboardData, loading } = useDashboardContext();
@@ -64,31 +65,39 @@ export default function DashboardPage() {
 
       {/* DASHBOARD */}
       <section className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto px-6 py-5">
+        <div className="flex-1 overflow-auto">
 
-          <KPIGrid data={dashboardData.KPIGrid} />
-
-          <div className="grid grid-cols-12 gap-5 mt-5">
-            <div className="col-span-8">
-              <RevenueChart data={dashboardData.RevenueChart} />
-            </div>
-
-            <div className="col-span-4">
-              <AIInsights data={dashboardData.AIInsights} />
-            </div>
+          {/* HEADER COMÚN CENTRADO */}
+          <div className="max-w-7xl mx-auto px-4 pt-12 md:pt-8">
+            <Header />
           </div>
 
-          <div className="grid grid-cols-12 gap-5 mt-5">
-            <div className="col-span-4">
-              <TopProducts data={dashboardData.TopProducts} />
+          {/* CONTENEDOR PRINCIPAL CENTRADO */}
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <KPIGrid data={dashboardData.KPIGrid} />
+
+            <div className="grid grid-cols-12 gap-5 mt-5">
+              <div className="col-span-12 lg:col-span-8">
+                <RevenueChart data={dashboardData.RevenueChart} />
+              </div>
+
+              <div className="col-span-12 lg:col-span-4">
+                <AIInsights data={dashboardData.AIInsights} />
+              </div>
             </div>
 
-            <div className="col-span-4">
-              <SalesTarget data={dashboardData.SalesTarget} />
-            </div>
+            <div className="grid grid-cols-12 gap-5 mt-5">
+              <div className="col-span-12 md:col-span-6 lg:col-span-4">
+                <TopProducts data={dashboardData.TopProducts} />
+              </div>
 
-            <div className="col-span-4">
-              <ActivityFeed data={dashboardData.ActivityFeed} />
+              <div className="col-span-12 md:col-span-6 lg:col-span-4">
+                <SalesTarget data={dashboardData.SalesTarget} />
+              </div>
+
+              <div className="col-span-12 md:col-span-12 lg:col-span-4">
+                <ActivityFeed data={dashboardData.ActivityFeed} />
+              </div>
             </div>
           </div>
 
