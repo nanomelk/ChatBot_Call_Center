@@ -17,6 +17,7 @@ export default function Main_Ia_Voz() {
   const [currentStep, setCurrentStep] = useState(1);
   const [textInput, setTextInput] = useState("");
   const [sessionId, setSessionId] = useState("");
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState(null);
@@ -58,7 +59,23 @@ export default function Main_Ia_Voz() {
   }, [isOnline, isLoading, currentStep, analysisData, error, setPageContext]);
 
   useEffect(() => {
-    checkBackendStatus();
+    const runInitialCheck = async () => {
+      const startTime = Date.now();
+      try {
+        await apiService.healthCheck();
+        setIsOnline(true);
+      } catch {
+        setIsOnline(false);
+      } finally {
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, 1000 - elapsedTime);
+        setTimeout(() => {
+          setInitialLoading(false);
+        }, remainingTime);
+      }
+    };
+    runInitialCheck();
+
     const interval = setInterval(checkBackendStatus, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -108,6 +125,20 @@ export default function Main_Ia_Voz() {
       "CALL_" + Math.random().toString(36).substring(2, 9).toUpperCase();
     setSessionId(randomId);
   };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col items-center justify-center font-sans antialiased">
+        <div className="relative w-12 h-12 mb-4">
+          <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
+          <div className="absolute inset-0 border-4 border-t-cyan-400 rounded-full animate-spin"></div>
+        </div>
+        <p className="text-sm text-slate-400 animate-pulse font-sans">
+          Conectando con el motor cognitivo de IA Voz...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white font-sans antialiased">
@@ -232,20 +263,16 @@ export default function Main_Ia_Voz() {
               )}
 
               {currentStep === 2 && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="relative w-20 h-20 mb-6">
-                    <div className="absolute inset-0 rounded-full bg-cyan-500/20 animate-pulse"></div>
-                    <div className="absolute inset-2 rounded-full bg-cyan-500/40 flex items-center justify-center">
-                      <FiHeadphones className="text-white" size={26} />
-                    </div>
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <div className="relative w-12 h-12 mb-4">
+                    <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-t-cyan-400 rounded-full animate-spin"></div>
                   </div>
-
-                  <h3 className="text-2xl font-semibold text-white mb-2">
-                    Procesando llamada
+                  <h3 className="text-lg font-semibold text-white mb-1">
+                    Procesando llamada...
                   </h3>
-
-                  <p className="text-slate-300 text-sm max-w-md">
-                    Analizando emoción, intención y contexto...
+                  <p className="text-xs text-slate-500 animate-pulse font-sans">
+                    Analizando emoción, intención y contexto con IA Voz...
                   </p>
                 </div>
               )}
