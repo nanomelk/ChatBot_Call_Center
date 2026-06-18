@@ -26,14 +26,20 @@ calls_collection = None
 if mongo_uri:
     try:
         if "<db_password>" not in mongo_uri:
-            mongo_client = MongoClient(mongo_uri)
+            # CAMBIA ESTA PARTE POR ESTO:
+            mongo_client = MongoClient(
+                mongo_uri,
+                tls=True,
+                tlsAllowInvalidCertificates=True, # ESTO SALTA EL SSL HANDSHAKE ERROR
+                tlsAllowInvalidHostnames=True
+            )
             db = mongo_client[mongo_db_name]
             calls_collection = db["calls"]
         else:
-            print("MONGO_URI contiene el placeholder '<db_password>'. Por favor actualízalo en tu .env")
+            print("MONGO_URI contiene el placeholder '<db_password>'.")
     except Exception as e:
         print(f"Error al conectar con MongoDB Atlas: {e}")
-
+        
 app_api = FastAPI()
 
 MEMORY_LIVE_CONTEXT = {}
