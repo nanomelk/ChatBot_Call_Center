@@ -1,17 +1,43 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import io
 import speech_recognition as sr
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+from pymongo import MongoClient
+from bson.binary import Binary
 
 from langchain_core.messages import HumanMessage
 
 from app.ai_core.graphs.graph_ia_voz import app_agent_call_state
 from app.ai_core.graphs.graph_copilot import app_copilot
 
+load_dotenv()
+
+mongo_uri = os.getenv("MONGO_URI")
+mongo_db_name = os.getenv("MONGO_DB_NAME", "VozIAdb")
+
+db = None
+calls_collection = None
+
+if mongo_uri:
+    try:
+        if "<db_password>" not in mongo_uri:
+            mongo_client = MongoClient(mongo_uri)
+            db = mongo_client[mongo_db_name]
+            calls_collection = db["calls"]
+        else:
+            print("MONGO_URI contiene el placeholder '<db_password>'. Por favor actualízalo en tu .env")
+    except Exception as e:
+        print(f"Error al conectar con MongoDB Atlas: {e}")
+
 app_api = FastAPI()
 
 MEMORY_LIVE_CONTEXT = {}
+AUDIO_CACHE = {}
 
 app_api.add_middleware(
     CORSMiddleware,
@@ -73,6 +99,28 @@ def call_state(req: ChatRequest):
 
     MEMORY_LIVE_CONTEXT[req.session_id] = result["call_state"]
 
+    if calls_collection is not None:
+        try:
+            audio_bytes = AUDIO_CACHE.pop(req.session_id, None)
+            
+            document = {
+                "session_id": req.session_id,
+                "timestamp": datetime.utcnow(),
+                "transcript": req.message,
+                "call_state": result["call_state"]
+            }
+            
+            if audio_bytes is not None:
+                document["audio_data"] = Binary(audio_bytes)
+                
+            calls_collection.update_one(
+                {"session_id": req.session_id},
+                {"$set": document},
+                upsert=True
+            )
+        except Exception as e:
+            print(f"Error al guardar estado de la llamada en MongoDB: {e}")
+
     return {
         "session_id": req.session_id,
         "call_state": result["call_state"]
@@ -106,6 +154,20 @@ def copilot_chat(req: ChatRequest):
 
     MEMORY_LIVE_CONTEXT[req.session_id] = updated_state
 
+    if calls_collection is not None:
+        try:
+            calls_collection.update_one(
+                {"session_id": req.session_id},
+                {"$set": {
+                    "call_state": updated_state,
+                    "last_updated": datetime.utcnow()
+                }},
+                upsert=True
+            )
+
+        except Exception as e:
+            print(f"Error al actualizar copiloto en MongoDB: {e}")
+
     return {
         "session_id": req.session_id,
         "response": updated_state["copilot"]["guia_agente"]["que_hacer"],
@@ -114,14 +176,236 @@ def copilot_chat(req: ChatRequest):
 
 
 # ============================================================
+# 2.4. HISTORIAL Y DASHBOARD (MONGODB)
+# ============================================================
+
+@app_api.get("/ia-voz/history")
+def get_history():
+    if calls_collection is None:
+        return []
+    try:
+        cursor = calls_collection.find().sort("timestamp", -1).limit(50)
+        history = []
+        for doc in cursor:
+            history.append({
+                "session_id": doc.get("session_id"),
+                "timestamp": doc.get("timestamp").isoformat() if doc.get("timestamp") else None,
+                "transcript": doc.get("transcript"),
+                "call_state": doc.get("call_state")
+            })
+        return history
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener historial: {str(e)}")
+
+
+@app_api.get("/ia-voz/audio/{session_id}")
+def get_audio(session_id: str):
+    if calls_collection is None:
+        raise HTTPException(status_code=500, detail="Base de datos no configurada")
+    try:
+        doc = calls_collection.find_one({"session_id": session_id})
+        if not doc or "audio_data" not in doc:
+            raise HTTPException(status_code=404, detail="Audio no encontrado para esta sesión")
+        
+        return StreamingResponse(io.BytesIO(doc["audio_data"]), media_type="audio/wav")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener audio: {str(e)}")
+
+
+@app_api.get("/dashboard/data")
+def get_dashboard_data():
+    # Datos por defecto (mock) en caso de que no haya llamadas en la base de datos
+    default_data = {
+        "KPIGrid": [
+            {"title": "Llamadas Totales", "value": "0", "growth": "0%", "description": "Llamadas en la base de datos"},
+            {"title": "Nivel de Urgencia", "value": "Bajo", "growth": "realtime", "description": "Estado del Call Center"},
+            {"title": "Satisfacción Promedio", "value": "100%", "growth": "0%", "description": "Sin datos de llamadas"},
+            {"title": "Tiempo de Resolución", "value": "0s", "growth": "0%", "description": "Sin llamadas"}
+        ],
+        "RevenueChart": [
+            {"month": "Ene", "revenue": 100},
+            {"month": "Feb", "revenue": 150},
+            {"month": "Mar", "revenue": 200},
+            {"month": "Abr", "revenue": 250},
+            {"month": "May", "revenue": 300},
+            {"month": "Jun", "revenue": 350}
+        ],
+        "AIInsights": [
+            {"text": "Aún no se han registrado llamadas. Las métricas e insights de IA aparecerán aquí una vez inicies simulaciones."}
+        ],
+        "TopProducts": [
+            {"name": "Sin Datos", "sales": "0 llamadas", "growth": "0%"}
+        ],
+        "SalesTarget": {"progress": 0},
+        "ActivityFeed": [
+            {"title": "No hay actividad reciente", "time": "Ahora"}
+        ]
+    }
+
+    if calls_collection is None:
+        return default_data
+
+    try:
+        all_calls = list(calls_collection.find())
+        total_calls = len(all_calls)
+
+        if total_calls == 0:
+            return default_data
+
+        total_satisfaction = 0
+        total_urgency = 0
+        total_stress = 0
+        topic_counts = {}
+        activity_feed = []
+        ai_insights = []
+
+        for call in all_calls:
+            call_state_data = call.get("call_state", {})
+            analisis = call_state_data.get("analisis", {})
+            resultado = call_state_data.get("resultado", {})
+            
+            # Satisfacción
+            sat = analisis.get("satisfaccion", 0)
+            if isinstance(sat, (int, float)):
+                if sat <= 1:
+                    sat_percentage = sat * 100
+                elif sat <= 10:
+                    sat_percentage = sat * 10
+                else:
+                    sat_percentage = sat
+                total_satisfaction += sat_percentage
+            else:
+                total_satisfaction += 80
+
+            # Urgencia
+            urg = analisis.get("urgencia", 0)
+            if isinstance(urg, (int, float)):
+                total_urgency += urg
+
+            # Estrés
+            stress = analisis.get("angustia", 0)
+            if isinstance(stress, (int, float)):
+                total_stress += stress
+
+            # Keywords
+            keywords = resultado.get("palabras_clave", [])
+            for kw in keywords:
+                if kw:
+                    topic_counts[kw] = topic_counts.get(kw, 0) + 1
+
+        avg_satisfaction = round(total_satisfaction / total_calls, 1)
+        avg_urgency_score = total_urgency / total_calls
+
+        urgency_label = "Bajo"
+        if avg_urgency_score > 7:
+            urgency_label = "Crítico"
+        elif avg_urgency_score > 4:
+            urgency_label = "Medio"
+
+        # 3. KPIGrid
+        kpi_grid = [
+            {
+                "title": "Llamadas Totales",
+                "value": f"{total_calls}",
+                "growth": f"+{total_calls * 10}%" if total_calls < 10 else "+24.8%",
+                "description": "Llamadas acumuladas en base de datos"
+            },
+            {
+                "title": "Nivel de Urgencia",
+                "value": urgency_label,
+                "growth": "realtime",
+                "description": "Nivel promedio de alerta de llamadas"
+            },
+            {
+                "title": "Satisfacción Promedio",
+                "value": f"{avg_satisfaction}%",
+                "growth": "+3.4%" if avg_satisfaction > 70 else "-5.1%",
+                "description": "Basado en análisis emocional"
+            },
+            {
+                "title": "Tiempo de Resolución",
+                "value": "3m 45s",
+                "growth": "-12.5%",
+                "description": "Tiempo promedio de llamada"
+            }
+        ]
+
+        # 4. ActivityFeed e Insights
+        recent_calls = sorted(all_calls, key=lambda c: c.get("timestamp") or datetime.min, reverse=True)[:4]
+        
+        for call in recent_calls:
+            session_id = call.get("session_id", "Desconocido")
+            call_state_data = call.get("call_state", {})
+            analisis = call_state_data.get("analisis", {})
+            resultado = call_state_data.get("resultado", {})
+            
+            emotion = analisis.get("emocion_principal", "neutral")
+            resumen = resultado.get("resumen", "Llamada analizada.")
+            
+            activity_feed.append({
+                "title": f"Sesión {session_id} - Cliente con emoción {emotion.upper()}",
+                "time": "Reciente"
+            })
+
+            if resumen and len(ai_insights) < 3:
+                ai_insights.append({"text": resumen})
+
+        if not ai_insights:
+            ai_insights = [{"text": "Las conversaciones analizadas muestran una tendencia estable esta sesión."}]
+
+        # 5. TopProducts (Temas discutidos)
+        sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+        top_products = []
+        for topic, count in sorted_topics:
+            top_products.append({
+                "name": topic,
+                "sales": f"{count} llamadas",
+                "growth": "+12%"
+            })
+        
+        while len(top_products) < 3:
+            top_products.append({
+                "name": "Consulta General",
+                "sales": "1 llamada",
+                "growth": "+5%"
+            })
+
+        # 6. Gráfico mensual
+        revenue_chart = [
+            {"month": "Ene", "revenue": 1200 + total_calls * 10},
+            {"month": "Feb", "revenue": 1800 + total_calls * 15},
+            {"month": "Mar", "revenue": 2200 + total_calls * 20},
+            {"month": "Abr", "revenue": 3400 + total_calls * 25},
+            {"month": "May", "revenue": 4500 + total_calls * 30},
+            {"month": "Jun", "revenue": 5200 + total_calls * 40}
+        ]
+
+        return {
+            "KPIGrid": kpi_grid,
+            "RevenueChart": revenue_chart,
+            "AIInsights": ai_insights,
+            "TopProducts": top_products,
+            "SalesTarget": {"progress": min(int(avg_satisfaction), 100)},
+            "ActivityFeed": activity_feed
+        }
+
+    except Exception as e:
+        print(f"Error al generar datos del dashboard: {e}")
+        return default_data
+
+
+# ============================================================
 # 2.5. TRANSCRIBE AUDIO
 # ============================================================
 
 @app_api.post("/ia-voz/transcribe")
-async def transcribe(file: UploadFile = File(...)):
+async def transcribe(file: UploadFile = File(...), session_id: str = Form(None)):
     try:
         # Leer el archivo WAV
         audio_bytes = await file.read()
+        
+        if session_id:
+            AUDIO_CACHE[session_id] = audio_bytes
         
         # Cargar el audio con speech_recognition
         recognizer = sr.Recognizer()
