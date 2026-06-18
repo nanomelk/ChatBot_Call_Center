@@ -30,7 +30,7 @@ export function DashboardProvider({ children }) {
   }, []);
 
   return (
-    <DashboardContext.Provider value={{ dashboardData, loading }}>
+    <DashboardContext.Provider value={{ dashboardData, loading, fetchDashboardData }}>
       {children}
     </DashboardContext.Provider>
   );
