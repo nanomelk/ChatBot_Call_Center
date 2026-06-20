@@ -5,6 +5,7 @@ import Header from "./components/Header";
 import AnalysisResults from "./components/AnalysisResults";
 import ConversationFlow from "./components/ConversationFlow";
 import AudioRecorder from "./components/AudioRecorder";
+import HistorialLlamadas from "./components/HistorialLlamadas";
 import { apiService } from "./services/api";
 
 import { usePageContextBridge } from "../../contexts/PageContextBridge";
@@ -18,6 +19,7 @@ export default function Main_Ia_Voz() {
   const [textInput, setTextInput] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
+  const [historial, setHistorial] = useState([]);
 
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState(null);
@@ -80,6 +82,18 @@ export default function Main_Ia_Voz() {
     return () => clearInterval(interval);
   }, []);
 
+  // Cargar historial de llamadas desde localStorage al inicio
+  useEffect(() => {
+    const historialGuardado = localStorage.getItem("vozia_historial");
+    if (historialGuardado) {
+      try {
+        setHistorial(JSON.parse(historialGuardado));
+      } catch (e) {
+        console.error("Error al cargar historial:", e);
+      }
+    }
+  }, []);
+
   const checkBackendStatus = async () => {
     try {
       await apiService.healthCheck();
@@ -103,10 +117,37 @@ export default function Main_Ia_Voz() {
       );
 
       console.log("🔥 BACKEND RESPONSE:", result);
-
       console.log("🔥 CALL STATE:", result.call_state);
 
       setAnalysisData(result.call_state);
+
+      // Procesar e integrar la nueva llamada en el historial
+      const callStateObj = result.call_state || {};
+      const analisis = callStateObj.analisis || {};
+      const resultado = callStateObj.resultado || {};
+      const audioOriginal = callStateObj.audio_original || {};
+
+      const nuevaLlamada = {
+        id: Date.now().toString(),
+        fecha: new Date().toISOString(),
+        resumen: resultado.resumen || "Análisis completado.",
+        satisfaccion: analisis.satisfaccion || 0,
+        metricasPromedio: {
+          angustia: analisis.angustia || 0,
+          urgencia: analisis.urgencia || 0,
+          interes: analisis.interes || 0,
+          satisfaccion: analisis.satisfaccion || 0
+        },
+        textoCompleto: audioOriginal.content || textInput,
+        huboAlerta: (analisis.urgencia > 90 || analisis.angustia > 90 || (callStateObj.accion && callStateObj.accion.recomendada && callStateObj.accion.recomendada.toUpperCase().includes('SUPERVISOR')))
+      };
+
+      setHistorial(prev => {
+        const nuevo = [nuevaLlamada, ...prev].slice(0, 10);
+        localStorage.setItem("vozia_historial", JSON.stringify(nuevo));
+        return nuevo;
+      });
+
       setCurrentStep(3);
     } catch (err) {
       setError(err.message || "Error al conectar con el backend");
@@ -317,6 +358,11 @@ export default function Main_Ia_Voz() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Historial de Llamadas encapsulado y estilizado */}
+        <div className="mt-8">
+          <HistorialLlamadas llamadas={historial} />
         </div>
       </div>
     </div>
